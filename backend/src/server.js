@@ -14,17 +14,32 @@ connectDB();
 const app = express();
 
 /* =========================
-   CORS (EXPRESS 5 SAFE)
+   CORS (PRODUCTION SAFE)
    ========================= */
+const allowedOrigins = [
+  "http://localhost:5173",           // dev frontend
+  "https://autho-1.onrender.com",    // deployed frontend
+];
+
 const corsOptions = {
-  origin: "https://autho-1.onrender.com",
+  origin: (origin, callback) => {
+    // allow requests with no origin (like Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
+// Apply CORS
 app.use(cors(corsOptions));
 
-// ✅ FIX: regex instead of "*"
-app.options(/.*/, cors(corsOptions));
+// Preflight requests
+app.options("*", cors(corsOptions));
 
 /* =========================
    Body parsers
@@ -41,9 +56,9 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: true,
-      sameSite: "none",
-      maxAge: 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === "production", // HTTPS only in prod
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
     },
   })
 );
@@ -68,10 +83,10 @@ app.get("/", (req, res) => {
    Error handler
    ========================= */
 app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({
+  console.error("Server Error:", err.message);
+  res.status(err.status || 500).json({
     success: false,
-    message: "Internal Server Error",
+    message: err.message || "Internal Server Error",
   });
 });
 
