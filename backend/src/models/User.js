@@ -2,53 +2,52 @@ import mongoose from "mongoose";
 import validator from "validator";
 import bcrypt from "bcryptjs";
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, "Name is required"],
-    trim: true,
-  },
-  email: {
-    type: String,
-    required: [true, "Email is required"],
-    unique: true,
-    lowercase: true,
-    validate: [validator.isEmail, "Please provide a valid email"],
-  },
-  password: {
-    type: String,
-    // Conditional requirement: Only required if NOT a Google user
-    required: function() {
-      return !this.googleId;
+// Define User Schema
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "Name is required"],
+      trim: true,
     },
-    minlength: 6,
+    email: {
+      type: String,
+      required: [true, "Email is required"],
+      unique: true,
+      lowercase: true,
+      validate: [validator.isEmail, "Please provide a valid email"],
+    },
+    password: {
+      type: String,
+      minlength: [6, "Password must be at least 6 characters"],
+      required: function () {
+        return !this.googleId; // Only required if not a Google user
+      },
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows null values
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    otp: String,
+    otpExpiresAt: Date,
   },
-  googleId: {
-    type: String,
-    unique: true,
-    sparse: true, 
-  },
-  isVerified: { 
-    type: Boolean, 
-    default: false 
-  },
-  otp: { 
-    type: String 
-  },
-  otpExpiresAt: { 
-    type: Date 
-  },
-}, { timestamps: true });
+  { timestamps: true }
+);
 
-// --- FIX: Removed 'next' to prevent TypeError in async hooks ---
+// Hash password before saving
 userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
+  if (!this.isModified("password")) return; // Only hash if password changed
 
   try {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
-  } catch (error) {
-    throw new Error("Password hashing failed: " + error.message);
+  } catch (err) {
+    throw new Error("Password hashing failed: " + err.message);
   }
 });
 
@@ -58,5 +57,6 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Export model
 const User = mongoose.model("User", userSchema);
 export default User;
