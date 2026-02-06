@@ -1,70 +1,84 @@
-import express from 'express';
-import dotenv from 'dotenv';
-import cors from 'cors';
-import passport from 'passport';
-import session from 'express-session';
-import connectDB from './config/db.js';
-import authRoutes from './routers/authRoutes.js';
-import { configurePassport } from './controller/authController.js';
+import express from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import passport from "passport";
+import session from "express-session";
 
-// 1. Load Environment Variables
+import connectDB from "./config/db.js";
+import authRoutes from "./routers/authRoutes.js";
+import { configurePassport } from "./controller/authController.js";
+
 dotenv.config();
-
-// 2. Connect to Database
 connectDB();
 
 const app = express();
 
-// 3. Middleware
-// Added specific methods to avoid CORS issues during redirects
-app.use(cors({
-  origin: [
-    "https://autho-1.onrender.com",
-    "http://localhost:5173"
-  ],
+/* =========================
+   CORS (EXPRESS 5 SAFE)
+   ========================= */
+const corsOptions = {
+  origin: "https://autho-1.onrender.com",
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+};
 
+app.use(cors(corsOptions));
 
+// ✅ FIX: regex instead of "*"
+app.options(/.*/, cors(corsOptions));
+
+/* =========================
+   Body parsers
+   ========================= */
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // Added to parse URL-encoded bodies
+app.use(express.urlencoded({ extended: true }));
 
-// 4. Session Configuration
-// Note: Google OAuth uses the session to store a 'state' parameter to prevent CSRF
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'secret_neural_key',
+/* =========================
+   Session
+   ========================= */
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "render_secret_key",
     resave: false,
-    saveUninitialized: false, // Changed to false for better privacy/security
+    saveUninitialized: false,
     cookie: {
-        secure: process.env.NODE_ENV === 'production', // Use true only in production (HTTPS)
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
-        maxAge: 24 * 60 * 60 * 1000 
-    }
-}));
+      secure: true,
+      sameSite: "none",
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  })
+);
 
-// 5. Initialize Passport
-// Ensure configurePassport() is called BEFORE initialize
-configurePassport(); 
+/* =========================
+   Passport
+   ========================= */
+configurePassport();
 app.use(passport.initialize());
 app.use(passport.session());
 
-// 6. Routes
-app.use('/api/auth', authRoutes);
+/* =========================
+   Routes
+   ========================= */
+app.use("/api/auth", authRoutes);
 
-app.get('/', (req, res) => {
-    res.send('Neural API is operational...');
+app.get("/", (req, res) => {
+  res.send("Backend running fine 🚀");
 });
 
-// 7. Error Handling Middleware
+/* =========================
+   Error handler
+   ========================= */
 app.use((err, req, res, next) => {
-    console.error("Server Error:", err.message);
-    res.status(err.status || 500).json({ 
-        success: false, 
-        message: err.message || 'Internal Server Error' 
-    });
+  console.error(err);
+  res.status(500).json({
+    success: false,
+    message: "Internal Server Error",
+  });
 });
 
+/* =========================
+   Start server
+   ========================= */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
