@@ -7,11 +7,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Check if user is already logged in on load
+  // Restore session on reload
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem("user");
       const token = localStorage.getItem("token");
+
       if (savedUser && token) {
         setUser(JSON.parse(savedUser));
       } else {
@@ -19,45 +20,40 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem("token");
       }
 
-      // Check for Google auth params
+      // Handle Google OAuth redirect
       const params = new URLSearchParams(window.location.search);
       const authToken = params.get("token");
       const userString = params.get("user");
+
       if (authToken && userString) {
-        try {
-          const decodedUser = decodeURIComponent(userString);
-          const userData = JSON.parse(decodedUser);
-          if (userData && authToken) {
-            loginWithToken(userData, authToken);
-            // Clean URL
-            window.history.replaceState(
-              {},
-              document.title,
-              window.location.pathname,
-            );
-          }
-        } catch (err) {
-          console.error("Error handling auth params:", err);
-        }
+        const userData = JSON.parse(decodeURIComponent(userString));
+        loginWithToken(userData, authToken);
+
+        // clean URL
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname
+        );
       }
-    } catch (error) {
-      console.error("Failed to load user from localStorage:", error);
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
+    } catch (err) {
+      console.error("Auth restore failed:", err);
+      localStorage.clear();
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // ✅ FIXED
   const signup = async (userData) => {
     try {
-      const response = await api.post("/signup", userData);
-      return response.data;
-    } catch (error) {
-      console.error("Signup failed:", error);
+      const res = await api.post("/api/auth/signup", userData);
+      return res.data;
+    } catch (err) {
+      console.error("Signup failed:", err);
       return {
         success: false,
-        message: error?.response?.data?.message || error.message,
+        message: err?.response?.data?.message || err.message,
       };
     }
   };
@@ -68,34 +64,32 @@ export const AuthProvider = ({ children }) => {
     setUser(data.user);
   };
 
+  // ✅ FIXED
   const verifyOtp = async (otpData) => {
     try {
-      const response = await api.post("/verify-otp", otpData);
-      if (response.data.success) {
-        handleAuthSuccess(response.data);
-      }
-      return response.data;
-    } catch (error) {
-      console.error("OTP verification failed:", error);
+      const res = await api.post("/api/auth/verify-otp", otpData);
+      if (res.data.success) handleAuthSuccess(res.data);
+      return res.data;
+    } catch (err) {
+      console.error("OTP failed:", err);
       return {
         success: false,
-        message: error?.response?.data?.message || error.message,
+        message: err?.response?.data?.message || err.message,
       };
     }
   };
 
+  // ✅ FIXED
   const login = async (credentials) => {
     try {
-      const response = await api.post("/login", credentials);
-      if (response.data.success) {
-        handleAuthSuccess(response.data);
-      }
-      return response.data;
-    } catch (error) {
-      console.error("Login failed:", error);
+      const res = await api.post("/api/auth/login", credentials);
+      if (res.data.success) handleAuthSuccess(res.data);
+      return res.data;
+    } catch (err) {
+      console.error("Login failed:", err);
       return {
         success: false,
-        message: error?.response?.data?.message || error.message,
+        message: err?.response?.data?.message || err.message,
       };
     }
   };
@@ -107,13 +101,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const googleLogin = () => {
-    const baseURL = api.defaults.baseURL || "http://localhost:5000";
-    window.location.href = `${baseURL.replace(/\/$/, "")}/api/auth/google`;
+    const baseURL = api.defaults.baseURL;
+    window.location.href = `${baseURL}/api/auth/google`;
   };
 
   const logout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+    localStorage.clear();
     setUser(null);
   };
 
